@@ -7,6 +7,9 @@ ARG DATE=$(date --utc +%Y%m%d)
 
 ARG IMAGE_NAME=utdemir/ghc-musl
 
+ARG CABAL_UPDATE=1
+ARG STACK_UPDATE=0
+
 base-system:
   FROM alpine:$ALPINE_VERSION
   RUN apk update \
@@ -41,20 +44,27 @@ haskell:
   RUN curl --fail --output /bin/ghcup \
         'https://downloads.haskell.org/ghcup/x86_64-linux-ghcup' \
    && chmod 0755 /bin/ghcup \
-   && ghcup upgrade --target /bin/ghcup \
-   && ghcup install cabal --set \
-   && /usr/local/.ghcup/bin/cabal update
+   && ghcup upgrade --target /bin/ghcup
   ENV PATH="/usr/local/.ghcup/bin:$PATH"
-  RUN ghcup install ghc "$GHC" --set \
+  RUN ghcup install cabal --set \
+   && ghcup install ghc "$GHC" --set \
    && ghcup install stack --set \
    && stack config set install-ghc false --global \
-   && stack config set system-ghc true --global \
-   && stack update
+   && stack config set system-ghc true --global
+  IF [ "$CABAL_UPDATE" = "1" ]
+    RUN cabal update
+  END
+  IF [ "$STACK_UPDATE" = "1" ]
+    RUN stack update
+  END
 
 test-cabal:
   FROM +haskell
   COPY example /example
   WORKDIR /example/
+  IF [ "$CABAL_UPDATE" = "0" ]
+    RUN cabal update
+  END
   RUN cabal new-build example --enable-executable-static
   RUN file $(cabal list-bin example) | grep 'statically linked'
   RUN echo test | $(cabal list-bin example) | grep 'Hello World!'
