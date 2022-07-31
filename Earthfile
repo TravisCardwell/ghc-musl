@@ -34,8 +34,9 @@ base-system:
         zlib zlib-dev zlib-static \
    && ln -s /usr/lib/libncursesw.so.6 /usr/lib/libtinfo.so.6
 
-ghcup:
+haskell:
   FROM +base-system
+  ARG --required GHC
   ENV GHCUP_INSTALL_BASE_PREFIX=/usr/local
   RUN curl --fail --output /bin/ghcup \
         'https://downloads.haskell.org/ghcup/x86_64-linux-ghcup' \
@@ -44,14 +45,14 @@ ghcup:
    && ghcup install cabal --set \
    && /usr/local/.ghcup/bin/cabal update
   ENV PATH="/usr/local/.ghcup/bin:$PATH"
-
-ghc:
-  FROM +ghcup
-  ARG --required GHC
-  RUN ghcup install ghc "$GHC" --set
+  RUN ghcup install ghc "$GHC" --set \
+   && ghcup install stack --set \
+   && stack config set install-ghc false --global \
+   && stack config set system-ghc true --global \
+   && stack update
 
 test-cabal:
-  FROM +ghc
+  FROM +haskell
   COPY example /example
   WORKDIR /example/
   RUN cabal new-build example --enable-executable-static
@@ -59,15 +60,24 @@ test-cabal:
   RUN echo test | $(cabal list-bin example) | grep 'Hello World!'
 
 test-stack:
+  FROM +haskell
+  COPY example /example
+  WORKDIR /example/
+  RUN stack build
+  RUN file $(find /example/.stack-work/install/ -type f -name example) \
+    | grep 'statically linked'
+  RUN echo test \
+    | $(find /example/.stack-work/install/ -type f -name example) \
+    | grep 'Hello World!'
+
+test-stack-docker:
   FROM earthly/dind:alpine
   RUN apk add curl file \
    && curl -sSL https://get.haskellstack.org/ | sh
   COPY example /example
   WORKDIR /example/
-  WITH DOCKER --load ghc-musl=+ghc
-    RUN stack build \
-          --ghc-options '-static -optl-static -optl-pthread -fPIC' \
-          --docker --docker-image ghc-musl
+  WITH DOCKER --load ghc-musl=+haskell
+    RUN stack build --docker --docker-image ghc-musl
   END
   RUN file $(find /example/.stack-work/install/ -type f -name example) \
     | grep 'statically linked'
@@ -76,9 +86,10 @@ test-stack:
     | grep 'Hello World!'
 
 image:
-  FROM +ghc
+  FROM +haskell
   ARG TEST_CABAL=1
   ARG TEST_STACK=1
+  ARG TEST_STACK_DOCKER=1
   ARG --required GHC
   ARG TAG_GHC=0
   IF [ "$TEST_CABAL" = "1" ]
@@ -86,6 +97,9 @@ image:
   END
   IF [ "$TEST_STACK" = "1" ]
     BUILD +test-stack
+  END
+  IF [ "$TEST_STACK_DOCKER" = "1" ]
+    BUILD +test-stack-docker
   END
   IF [ "$TAG_GHC" = "1" ]
     SAVE IMAGE --push "${IMAGE_NAME}:ghc${GHC}"

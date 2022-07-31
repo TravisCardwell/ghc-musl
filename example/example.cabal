@@ -11,3 +11,4 @@ executable example
                , bytestring
                , ghc-musl-test-dep
                , pcre-light
+  ld-options: -static -pthread

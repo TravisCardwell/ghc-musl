@@ -19,9 +19,9 @@ therefore can be used to create fully static Haskell binaries without
 `glibc` dependency on any platform which can run Docker (x86_64). Powered
 by [ghcup](https://www.haskell.org/ghcup/).
 
-Images come with `ghc` and `cabal` executables alongside with commonly
-used libraries and build tools. They can also be used with the `stack`
-build tool using its Docker integration.
+Images come with `ghc`, `cabal`, and `stack` executables alongside with
+commonly used libraries and build tools. They can also be used with the
+`stack` build tool using its Docker integration.
 
 Here are the latest images currently [published in Docker Hub](https://hub.docker.com/r/utdemir/ghc-musl/tags):
 
@@ -115,7 +115,7 @@ You can use the following command to disable Stack tests so that
 `--allow-privileged` is not necessary:
 
 ```
-earthly --build-arg TEST_STACK=0 +all
+earthly --build-arg TEST_STACK_DOCKER=0 +all
 ```
 
 The following command updates `README.md`:
